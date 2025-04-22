@@ -15,6 +15,7 @@
     "@langchain/core": "^0.3.46",
     "@langchain/google-genai": "^0.2.4",
     "@supabase/supabase-js": "^2.49.4",
+    "nodemon": "^3.1.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
