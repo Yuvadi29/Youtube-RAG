@@ -1,34 +1,47 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 
-function App() {
-  const [count, setCount] = useState(0)
+interface Message {
+  role: "user" | "assistant"
+  content: string
+}
+
+const App = () => {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setLoading(true);
+
+      // Generate ids for conversation and video
+      const convId = uuidv4();
+      const docId = uuidv4();
+
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <div className=' flex justify-center p-6 items-center text-white'>
+      <h1 className='text-3xl font-bold'>AI Chat with YouTube</h1>
+      <form onSubmit={handleSubmit}>
+        <input
+          placeholder="Drop a Youtube URL Here..."
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+
+        <button type="submit" disabled={loading} className="btn-submit">{loading ? "Processing..." : "Submit"}</button>
+      </form>
+
+      {loading && <div className="loading-spinner">Loading....</div>}
+    </div>
   )
 }
 
