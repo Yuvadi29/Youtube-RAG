@@ -1,19 +1,27 @@
+import { createSupabaseClient } from '../helpers/supabaseClient';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-export async function storeDocument(req) {
+export async function storeDocument (req) {
+  try {
+    // Init Supabase client
+    const supabase = createSupabaseClient();
 
-    try {
-        // Init Supabase client
-        const supabase=  creaateCli
+    // Initialise the embeddings
+    const ai = new GoogleGenerativeAI({apiKey: process.env.GEMINI_API_KEY});
 
-    } catch (error) {
-        console.error(error);
+    const model = await ai.getGenerativeModel({
+        model: "gemini-embedding-001",
+    });
 
-        return {
-            ok:false
-        }
-    }
+  } catch (error) {
+    console.error(error)
 
     return {
-        ok: true
+      ok: false
     }
+  }
+
+  return {
+    ok: true
+  }
 }
