@@ -14,6 +14,7 @@
     "@langchain/community": "^0.3.41",
     "@langchain/core": "^0.3.46",
     "@langchain/google-genai": "^0.2.4",
+    "@langchain/textsplitters": "^0.1.0",
     "@supabase/supabase-js": "^2.49.4",
     "nodemon": "^3.1.9",
     "react": "^19.0.0",

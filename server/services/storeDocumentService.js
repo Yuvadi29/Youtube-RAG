@@ -3,6 +3,7 @@ import { createSupabaseClient } from '../helpers/supabaseClient.js'
 import { TaskType } from '@google/generative-ai'
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai'
 import { YoutubeLoader } from '@langchain/community/document_loaders/web/youtube'
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 
 export async function storeDocument (req) {
   try {
@@ -34,7 +35,16 @@ export async function storeDocument (req) {
 
     const docs = await loader.load();
 
-    console.log("Youtube Video Data: ", docs);
+    // Splitting the docs into smaller chunks
+    const textSplitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 1000,
+        chunkOverlap: 200,
+    });
+
+    const texts = await textSplitter.splitDocuments(docs);
+
+    console.log(texts);
+    
   } catch (error) {
     console.error(error)
   }
