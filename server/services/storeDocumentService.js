@@ -86,7 +86,7 @@ export async function storeDocument(req) {
       throw new Error('URL is required in the request body')
     }
 
-    const { url } = req.body
+    const { url, documentId } = req.body
     const supabase = createSupabaseClient()
 
     const embeddings = new GoogleGenerativeAIEmbeddings({
@@ -120,10 +120,6 @@ export async function storeDocument(req) {
     if (!texts.length || !texts[0].pageContent) {
       throw new Error('Document has no content to embed.')
     }
-
-    const documentId = uuidv4()
-    console.log('Generated DocumentID:', documentId)
-    console.log('First chunk preview:', texts[0].pageContent.slice(0, 100))
 
     const docsWithMetaData = texts.map((text) => ({
       ...text,
