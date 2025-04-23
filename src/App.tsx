@@ -37,6 +37,16 @@ const App = () => {
         conversation_id: convId,
         document_id: docId
       });
+
+
+      // Store the document 
+      await fetch("http://localhost:8000/store-document", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({url, documentId: docId})
+      })
     } catch (error) {
       console.error(error);
     } finally {
