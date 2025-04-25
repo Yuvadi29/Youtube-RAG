@@ -8,19 +8,18 @@ import {
   ChatPromptTemplate,
   MessagesPlaceholder
 } from '@langchain/core/prompts'
-// import { createHistoryAwareRetriever } from '@langchain/core/retrievers'
-import { createHistoryAwareRetriever } from "langchain/chains/history_aware_retriever";
-import { createStuffDocumentsChain } from 'langchain/chains/combine_documents';
-import { createRetrievalChain } from "langchain/chains/retrieval";
+import { createStuffDocumentsChain } from 'langchain/chains/combine_documents'
+import { createRetrievalChain } from 'langchain/chains/retrieval'
 import { HumanMessage, AIMessage } from '@langchain/core/messages'
 import { Readable } from 'stream'
+import { createHistoryAwareRetriever } from 'langchain/chains/history_aware_retriever'
 
 export async function queryDocument (req) {
   try {
-    const { conversationId, query, documentIds } = req.body
+    const { conversationId, documentIds, query } = req.body
     const supabase = createSupabaseClient()
 
-    // Store user quey
+    // Store user query
     await supabase.from('conversation_messages').insert({
       conversation_id: conversationId,
       role: 'user',
@@ -37,7 +36,7 @@ export async function queryDocument (req) {
 
     // Initialise embedding models and LLM
     const embeddings = new GoogleGenerativeAIEmbeddings({
-      model: 'embedding-001', // ✅ Safe default
+      model: 'embedding-001',
       apiKey: process.env.GEMINI_API_KEY
     })
 
@@ -47,25 +46,32 @@ export async function queryDocument (req) {
       streamUsage: true
     })
 
-    // Initialise the vector store
-    const vectorStore = new SupabaseVectorStore(embeddings, {
+    // Setup vector store configuration
+    const vectorStoreConfig = {
       client: supabase,
       tableName: 'embedded_documents',
-      queryName: 'match_documents',
-      filter: {
-        document_ids: documentIds
+      queryName: 'match_documents'
+    }
+
+    // Only add filter if documentIds is provided and is not empty
+    if (documentIds && Array.isArray(documentIds) && documentIds.length > 0) {
+      vectorStoreConfig.filter = {
+        document_id: documentIds
       }
-    })
+    }
+    
+    // Initialise the vector store
+    const vectorStore = new SupabaseVectorStore(embeddings, vectorStoreConfig)
 
     // Change the prompt based on query and documents
     const contextSystemPrompt =
       'Given a chat history and latest user question ' +
       'which might reference context in the chat history ' +
       'formulate a standalone question which can be understood ' +
-      'without the chat history. DO NO answer the question, ' +
+      'without the chat history. DO NOT answer the question, ' +
       'just reformulate it if needed and otherwise return it as is.'
 
-    // A set of instrucions how to rewrite the question
+    // A set of instructions how to rewrite the question
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', contextSystemPrompt],
       new MessagesPlaceholder('chat_history'),
@@ -74,7 +80,7 @@ export async function queryDocument (req) {
 
     // Retrieve the documents
     const retriever = vectorStore.asRetriever()
-    const historyRetriver = createHistoryAwareRetriever({
+    const historyAwareRetriever = await createHistoryAwareRetriever({
       llm,
       retriever,
       rephrasePrompt: prompt
@@ -83,7 +89,7 @@ export async function queryDocument (req) {
     // Pass relevant documents to llm
     const systemPrompt =
       'You are an assistant for question answering tasks. ' +
-      'Use the following pieces of retrived context to answer ' +
+      'Use the following pieces of retrieved context to answer ' +
       'the question. ' +
       '\n\n' +
       '{context}'
@@ -100,7 +106,7 @@ export async function queryDocument (req) {
     })
 
     const ragChain = await createRetrievalChain({
-      retriever: historyRetriver,
+      retriever: historyAwareRetriever,
       combineDocsChain: qAChain
     })
 
@@ -110,24 +116,68 @@ export async function queryDocument (req) {
         : new AIMessage(msg.content)
     })
 
-    const response = ragChain.stream({
-      input: query,
-      chat_history: history
-    })
+    // For streaming implementation
+    if (req.headers['accept'] === 'text/event-stream') {
+      const responseStream = new Readable({
+        read () {}
+      })
 
-    const responseStream = new Readable({
-      async read () {
-        for await (const chunkk of response) {
-          if (chunkk.answer) {
-            console.log(answer)
-            this.push(`data: ${JSON.stringify({ content: chunkk.answer })}\n\n`)
+      let fullAnswer = ''
+
+      // Start the streaming
+      const stream = await ragChain.stream({
+        input: query,
+        chat_history: history
+      })
+
+      // Process each chunk
+      ;(async () => {
+        try {
+          for await (const chunk of stream) {
+            if (chunk.answer) {
+              responseStream.push(
+                `data: ${JSON.stringify({ content: chunk.answer })}\n\n`
+              )
+              fullAnswer += chunk.answer
+            }
           }
-        }
-        this.push(null)
-      }
-    })
+          // End the stream
+          responseStream.push(null)
 
-    return responseStream
+          // Store AI response in database
+          if (fullAnswer) {
+            await supabase.from('conversation_messages').insert({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: fullAnswer
+            })
+          }
+        } catch (error) {
+          console.error('Streaming error:', error)
+          responseStream.push(
+            `data: ${JSON.stringify({ error: 'Streaming error occurred' })}\n\n`
+          )
+          responseStream.push(null)
+        }
+      })()
+
+      return responseStream
+    } else {
+      // For non-streaming response
+      const response = await ragChain.invoke({
+        input: query,
+        chat_history: history
+      })
+
+      // Store AI response in database
+      await supabase.from('conversation_messages').insert({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: response.answer
+      })
+
+      return response.answer;
+    }
   } catch (error) {
     console.error('❌ queryDocument Error:', error.message)
     throw error
